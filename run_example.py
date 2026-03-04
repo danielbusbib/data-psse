@@ -1,39 +1,27 @@
 """
-Test: load dataset, build h(), compute z = h(x) + noise.
+Test: load dataset, generate measurements with obs-dependent noise.
 """
 import torch
 
-from config import OBS_LEVEL
+from config import OBS_LEVEL, GENERATOR_KWARGS
 from dataset import load_dataset
-from h import get_h
+from h import generate_measurements
 
 
 def main():
-    # Load or generate dataset
     x = load_dataset()
-    print(f"x: {x.shape}  (T: {x.shape[1]//2}, V: {x.shape[1]//2})")
-
-    # Build h() for IEEE 118. With keep_nans=True, z shape is constant (726) for all obs.
-    h, sys, branch = get_h(obs=OBS_LEVEL)
-
-    # Test h(x)
     x0 = x[0]
-    z = h.estimate(x0)
-    print(f"z: {z.shape}")
+    T0, V0 = x0[:118], x0[118:]
 
-    # With noise
-    noise_std = 0.01
-    z_noisy = z + noise_std * torch.randn_like(z)
-    print(f"z_noisy: {z_noisy.shape}")
+    kwargs = dict(GENERATOR_KWARGS, sample=OBS_LEVEL)
+    z, var, _, _, h = generate_measurements(T0, V0, **kwargs)
 
-    # Jacobian
-    J = h.jacobian(x0)
-    print(f"J: {J.shape}")
+    print(f"x: {x.shape}")
+    print(f"z: {z.shape}  (obs={OBS_LEVEL})")
+    print(f"J: {h.jacobian(x0).shape}")
 
-    # Grad check
     x0_grad = x0.clone().requires_grad_(True)
-    z_grad = h.estimate(x0_grad)
-    z_grad.sum().backward()
+    h.estimate(x0_grad).sum().backward()
     print(f"grad ok: {x0_grad.grad is not None}")
 
 
